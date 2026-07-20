@@ -1,0 +1,9 @@
+{
+  "dim": 100,
+  "count": 40000,
+  "source": "glove.6B.100d",
+  "vectorFile": "vocab_vectors.f32",
+  "wordsFile": "vocab_words.json",
+  "byteOrder": "little-endian",
+  "dtype": "float32"
+}

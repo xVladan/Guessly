@@ -1,0 +1,10 @@
+services:
+  guessly-api:
+    build: ./Guessly.Api
+    container_name: guessly-api
+    restart: always
+    ports:
+      - "5060:5000"
+    environment:
+      - PORT=5000
+      - ALLOWED_ORIGINS=https://guessly.weddio.net

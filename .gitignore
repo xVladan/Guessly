@@ -1,0 +1,13 @@
+# .NET build output
+backend/**/bin/
+backend/**/obj/
+
+# Raw GloVe download (~1.2GB) — reproducible via embeddings/scripts, not needed in git.
+# The filtered, ready-to-use output (embeddings/data/*.json, vocab_vectors.f32) IS
+# tracked, along with its copy in backend/Guessly.Api/EmbeddingsData which the
+# Docker build actually ships.
+embeddings/data/raw/
+
+# OS/editor noise
+.vs/
+*.user
