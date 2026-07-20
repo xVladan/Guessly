@@ -39,6 +39,9 @@ app.MapGet("/health", (EmbeddingService embeddings) => Results.Ok(new
 
 app.MapGet("/api/avatars", () => Results.Ok(GameEngine.AvailableAvatars));
 
+app.MapGet("/api/rooms/{code}/taken-avatars", (string code, GameEngine engine) =>
+    Results.Ok(engine.GetTakenAvatars(code)));
+
 app.MapHub<GameHub>("/hub/game");
 
 app.Run();

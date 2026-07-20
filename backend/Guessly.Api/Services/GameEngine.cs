@@ -28,6 +28,18 @@ public sealed class GameEngine(
     private readonly ConcurrentDictionary<string, Room> _rooms = new();
     private readonly ConcurrentDictionary<string, (string RoomCode, string PlayerId)> _connections = new();
 
+    /// <summary>Lets a client entering a room code preview which avatars are already taken, before it commits to joining.</summary>
+    public List<string> GetTakenAvatars(string roomCode)
+    {
+        if (!_rooms.TryGetValue(roomCode.ToUpperInvariant(), out var room))
+            return [];
+
+        lock (room.Lock)
+        {
+            return room.Players.Where(p => p.IsConnected).Select(p => p.Avatar).ToList();
+        }
+    }
+
     public JoinResultDto CreateRoom(string connectionId, string name, string avatar)
     {
         avatar = avatar is { Length: > 0 } && AvailableAvatars.Contains(avatar) ? avatar : AvailableAvatars[0];
