@@ -21,7 +21,7 @@ public sealed class GameEngine(
     ILogger<GameEngine> logger)
 {
     public static readonly string[] AvailableAvatars =
-        ["🐶", "🐱", "🦊", "🐻", "🐼", "🦁", "🐸", "🐵", "🐷", "🐰", "🦄", "🐨"];
+        ["🐶", "🐱", "🦊", "🐻", "🐼", "🦁", "🐸", "🐵", "🐷", "🐰", "🦄", "🐨", "🐍"];
 
     private const int RoundEndDelaySeconds = 6;
 
@@ -94,6 +94,49 @@ public sealed class GameEngine(
             logger.LogInformation("{Player} joined room {Code}", name, roomCode);
             BroadcastRoomState(room);
             return new JoinResultDto(BuildRoomStateDto(room), playerId);
+        }
+    }
+
+    /// <summary>
+    /// Re-attaches a new SignalR connection to an existing (possibly still
+    /// disconnected) player record — used when a client reloads the page or
+    /// briefly drops connection and wants back into the same seat, using the
+    /// (roomCode, playerId) it cached client-side. Returns enough state for
+    /// the client to rebuild its UI, including a round snapshot if a round
+    /// is currently in progress.
+    /// </summary>
+    public RejoinResultDto RejoinRoom(string connectionId, string roomCode, string playerId)
+    {
+        var room = GetRoomOrThrow(roomCode);
+        lock (room.Lock)
+        {
+            var player = room.Players.FirstOrDefault(p => p.Id == playerId);
+            if (player is null)
+                throw new GameEngineException("That player is no longer in this room.");
+
+            player.ConnectionId = connectionId;
+            player.IsConnected = true;
+
+            _connections[connectionId] = (room.Code, playerId);
+            hubContext.Groups.AddToGroupAsync(connectionId, room.Code);
+
+            logger.LogInformation("{Player} reconnected to room {Code}", player.Name, room.Code);
+            BroadcastRoomState(room);
+
+            RoundSnapshotDto? roundSnapshot = null;
+            if (room.Phase == RoomPhase.InRound && room.CurrentRound is { } round)
+            {
+                var guesses = round.Guesses
+                    .Select(g => new GuessResultDto(g.Word, g.IsHint ? null : g.PlayerId, g.Rank, g.Rank == 1, g.AttemptNumber, g.IsHint))
+                    .ToList();
+
+                roundSnapshot = new RoundSnapshotDto(
+                    round.RoundNumber, room.Settings.RoundCount, round.SecretWord.Length,
+                    round.TurnOrderPlayerIds, round.RoundDeadlineUtc, round.CurrentTurnPlayerId, round.TurnDeadlineUtc,
+                    guesses, round.HintsUsedByPlayerId.Contains(playerId));
+            }
+
+            return new RejoinResultDto(BuildRoomStateDto(room), playerId, roundSnapshot);
         }
     }
 

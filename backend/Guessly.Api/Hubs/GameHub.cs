@@ -36,6 +36,18 @@ public sealed class GameHub(GameEngine engine) : Hub
         }
     }
 
+    public RejoinResultDto RejoinRoom(string roomCode, string playerId)
+    {
+        try
+        {
+            return engine.RejoinRoom(Context.ConnectionId, roomCode, playerId);
+        }
+        catch (GameEngineException ex)
+        {
+            throw new HubException(ex.Message);
+        }
+    }
+
     public void UpdateSettings(RoomSettings settings)
     {
         try

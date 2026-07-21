@@ -17,6 +17,20 @@ public sealed record RoomStateDto(
 
 public sealed record JoinResultDto(RoomStateDto Room, string YourPlayerId);
 
+/// <summary>Snapshot of an in-progress round, sent to a player who reconnects mid-round so their client can rebuild its local guess list.</summary>
+public sealed record RoundSnapshotDto(
+    int RoundNumber,
+    int TotalRounds,
+    int SecretWordLength,
+    List<string> TurnOrderPlayerIds,
+    DateTime RoundDeadlineUtc,
+    string ActivePlayerId,
+    DateTime TurnDeadlineUtc,
+    List<GuessResultDto> Guesses,
+    bool HintAlreadyUsed);
+
+public sealed record RejoinResultDto(RoomStateDto Room, string YourPlayerId, RoundSnapshotDto? Round);
+
 public sealed record RoundStartedDto(
     int RoundNumber,
     int TotalRounds,
