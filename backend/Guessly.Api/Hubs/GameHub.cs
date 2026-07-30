@@ -108,6 +108,23 @@ public sealed class GameHub(GameEngine engine) : Hub
         }
     }
 
+    public void LeaveRoom()
+    {
+        engine.LeaveRoom(Context.ConnectionId);
+    }
+
+    public void KickPlayer(string targetPlayerId)
+    {
+        try
+        {
+            engine.KickPlayer(Context.ConnectionId, targetPlayerId);
+        }
+        catch (GameEngineException ex)
+        {
+            throw new HubException(ex.Message);
+        }
+    }
+
     public override Task OnDisconnectedAsync(Exception? exception)
     {
         engine.HandleDisconnect(Context.ConnectionId);

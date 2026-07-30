@@ -328,6 +328,91 @@ public sealed class GameEngine(
         }
     }
 
+    /// <summary>
+    /// Explicit, permanent departure — unlike a disconnect, the player is
+    /// fully removed from the room (not just marked disconnected), so they
+    /// stop cluttering the player list and can't be reconnected into. The
+    /// caller is expected to also clear its own cached identity so a page
+    /// reload doesn't try to rejoin.
+    /// </summary>
+    public void LeaveRoom(string connectionId)
+    {
+        if (!_connections.TryRemove(connectionId, out var info))
+            return;
+        if (!_rooms.TryGetValue(info.RoomCode, out var room))
+            return;
+
+        lock (room.Lock)
+        {
+            var player = room.Players.FirstOrDefault(p => p.Id == info.PlayerId);
+            if (player is null)
+                return;
+
+            logger.LogInformation("{Player} left room {Code}", player.Name, room.Code);
+            RemovePlayerFromRoom(room, player);
+        }
+    }
+
+    /// <summary>Host-only forced removal of another player. Same end state as LeaveRoom, but the target's own client is told so it can bail out immediately.</summary>
+    public void KickPlayer(string connectionId, string targetPlayerId)
+    {
+        var (room, host) = GetRoomAndPlayerOrThrow(connectionId);
+        lock (room.Lock)
+        {
+            if (host.Id != room.HostPlayerId)
+                throw new GameEngineException("Only the host can remove players.");
+            if (targetPlayerId == host.Id)
+                throw new GameEngineException("You can't remove yourself — leave the room instead.");
+
+            var target = room.Players.FirstOrDefault(p => p.Id == targetPlayerId);
+            if (target is null)
+                throw new GameEngineException("That player is no longer in this room.");
+
+            logger.LogInformation("{Player} was kicked from room {Code}", target.Name, room.Code);
+
+            var targetConnectionId = target.ConnectionId;
+            RemovePlayerFromRoom(room, target);
+
+            if (target.IsConnected)
+            {
+                hubContext.Clients.Client(targetConnectionId).SendAsync("Kicked");
+                _connections.TryRemove(targetConnectionId, out _);
+                hubContext.Groups.RemoveFromGroupAsync(targetConnectionId, room.Code);
+            }
+        }
+    }
+
+    /// <summary>Shared removal logic for LeaveRoom/KickPlayer — must be called within room.Lock.</summary>
+    private void RemovePlayerFromRoom(Room room, Player player)
+    {
+        var wasHost = player.Id == room.HostPlayerId;
+        var round = room.CurrentRound;
+        var wasCurrentTurn = room.Phase == RoomPhase.InRound && round is { IsOver: false } && round.CurrentTurnPlayerId == player.Id;
+
+        room.Players.Remove(player);
+        room.Scores.Remove(player.Id);
+
+        if (room.Players.Count == 0)
+        {
+            CancelRoundTimers(room.CurrentRound);
+            _rooms.TryRemove(room.Code, out _);
+            logger.LogInformation("Room {Code} removed (empty)", room.Code);
+            return;
+        }
+
+        if (wasHost)
+        {
+            var nextHost = room.Players.Where(p => p.IsConnected).OrderBy(p => p.JoinOrder).FirstOrDefault()
+                ?? room.Players.OrderBy(p => p.JoinOrder).First();
+            room.HostPlayerId = nextHost.Id;
+        }
+
+        if (wasCurrentTurn && round != null)
+            AdvanceTurn(room, round);
+
+        BroadcastRoomState(room);
+    }
+
     public void HandleDisconnect(string connectionId)
     {
         if (!_connections.TryRemove(connectionId, out var info))
