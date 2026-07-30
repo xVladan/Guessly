@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Guessly Admin</title>
+<style>
+  :root {
+    --bg: #14161f; --panel: #1e2130; --panel2: #262a3d; --text: #eef0f8;
+    --dim: #9aa0b4; --accent: #7c5cff; --green: #34c77b; --red: #e0524d; --border: #333752;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px; background: linear-gradient(180deg, var(--bg), #0d0e15);
+    color: var(--text); font-family: -apple-system, Segoe UI, Roboto, sans-serif; min-height: 100vh;
+  }
+  h1 { margin: 0 0 16px; font-size: 1.4rem; }
+  .status { color: var(--dim); font-size: 0.85rem; margin-bottom: 20px; }
+  .status.error { color: var(--red); }
+  #keyPrompt {
+    max-width: 420px; margin: 60px auto; padding: 24px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 12px; text-align: center;
+  }
+  #keyPrompt input {
+    width: 100%; margin: 12px 0; padding: 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--panel2); color: var(--text); font-size: 1rem;
+  }
+  button {
+    cursor: pointer; border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+    padding: 9px 16px; border-radius: 8px; font-size: 0.9rem;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border: none; color: white; font-weight: 600; width: 100%; }
+  #rooms { display: flex; flex-direction: column; gap: 14px; }
+  .room-card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .room-card h2 { margin: 0 0 4px; font-size: 1.1rem; letter-spacing: 2px; }
+  .room-meta { color: var(--dim); font-size: 0.85rem; margin-bottom: 10px; }
+  .secret-word { display: inline-block; margin-bottom: 10px; padding: 3px 10px; border-radius: 999px;
+    background: var(--panel2); border: 1px solid var(--accent); font-weight: 700; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 6px 8px; text-align: left; font-size: 0.9rem; border-bottom: 1px solid var(--border); }
+  .disconnected { opacity: 0.4; }
+  #topBar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  #logoutBtn { font-size: 0.8rem; }
+</style>
+</head>
+<body>
+
+<div id="keyPrompt">
+  <h1>🔒 Guessly Admin</h1>
+  <p class="status">Enter the admin API key to view live rooms.</p>
+  <input id="keyInput" type="password" placeholder="Admin API key" />
+  <button class="primary" id="keySubmit">Continue</button>
+</div>
+
+<div id="dashboard" style="display:none">
+  <div id="topBar">
+    <h1>🔒 Guessly Admin — Live Rooms</h1>
+    <button id="logoutBtn">Change key</button>
+  </div>
+  <p class="status" id="status">Loading…</p>
+  <div id="rooms"></div>
+</div>
+
+<script>
+const KEY_STORAGE = "guessly_admin_key";
+const REFRESH_MS = 4000;
+
+function getKey() { return localStorage.getItem(KEY_STORAGE); }
+function setKey(k) { localStorage.setItem(KEY_STORAGE, k); }
+function clearKey() { localStorage.removeItem(KEY_STORAGE); }
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+async function fetchRooms() {
+  const res = await fetch("/api/admin/rooms", { headers: { "X-Admin-Key": getKey() } });
+  if (res.status === 401) throw new Error("UNAUTHORIZED");
+  if (!res.ok) throw new Error(`Server error (${res.status})`);
+  return res.json();
+}
+
+function renderRooms(rooms) {
+  const container = document.getElementById("rooms");
+  const statusEl = document.getElementById("status");
+
+  if (rooms.length === 0) {
+    statusEl.textContent = "No active rooms right now.";
+    container.innerHTML = "";
+    return;
+  }
+  statusEl.textContent = `${rooms.length} active room${rooms.length === 1 ? "" : "s"} · refreshing every ${REFRESH_MS / 1000}s`;
+
+  container.innerHTML = rooms.map((r) => `
+    <div class="room-card">
+      <h2>${escapeHtml(r.code)}</h2>
+      <div class="room-meta">
+        Phase: ${escapeHtml(r.phase)} · Round ${r.currentRoundNumber}/${r.totalRounds} · ${r.players.length} player(s)
+      </div>
+      ${r.secretWord ? `<div class="secret-word">🔑 ${escapeHtml(r.secretWord)}</div>` : ""}
+      <table>
+        <tr><th>Avatar</th><th>Name</th><th>Score</th><th>Status</th></tr>
+        ${r.players.map((p) => `
+          <tr class="${p.isConnected ? "" : "disconnected"}">
+            <td>${p.avatar}</td>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${p.totalScore}</td>
+            <td>${p.isConnected ? "connected" : "disconnected"}</td>
+          </tr>
+        `).join("")}
+      </table>
+    </div>
+  `).join("");
+}
+
+async function tick() {
+  try {
+    const rooms = await fetchRooms();
+    renderRooms(rooms);
+  } catch (err) {
+    if (err.message === "UNAUTHORIZED") {
+      clearKey();
+      showKeyPrompt("That key was rejected. Try again.");
+      return;
+    }
+    document.getElementById("status").textContent = "Error: " + err.message;
+    document.getElementById("status").className = "status error";
+  }
+}
+
+function showDashboard() {
+  document.getElementById("keyPrompt").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+  tick();
+  setInterval(tick, REFRESH_MS);
+}
+
+function showKeyPrompt(message) {
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("keyPrompt").style.display = "block";
+  if (message) document.querySelector("#keyPrompt .status").textContent = message;
+}
+
+document.getElementById("keySubmit").addEventListener("click", () => {
+  const key = document.getElementById("keyInput").value.trim();
+  if (!key) return;
+  setKey(key);
+  showDashboard();
+});
+document.getElementById("keyInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") document.getElementById("keySubmit").click();
+});
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  clearKey();
+  showKeyPrompt();
+});
+
+if (getKey()) showDashboard();
+</script>
+</body>
+</html>

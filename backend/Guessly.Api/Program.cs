@@ -29,6 +29,8 @@ builder.Services.AddEndpointsApiExplorer();
 var app = builder.Build();
 
 app.UseCors(CorsPolicy);
+app.UseDefaultFiles();
+app.UseStaticFiles(); // serves wwwroot/admin.html at /admin.html
 
 app.MapGet("/health", (EmbeddingService embeddings) => Results.Ok(new
 {
