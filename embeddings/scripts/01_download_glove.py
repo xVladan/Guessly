@@ -14,7 +14,7 @@ import requests
 from tqdm import tqdm
 
 GLOVE_URL = "https://nlp.stanford.edu/data/glove.6B.zip"
-DIM = 100
+DIM = 300
 TARGET_MEMBER = f"glove.6B.{DIM}d.txt"
 
 ROOT = Path(__file__).resolve().parent.parent

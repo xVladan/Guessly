@@ -18,7 +18,7 @@ from pathlib import Path
 import nltk
 import numpy as np
 
-DIM = 100
+DIM = 300  # 300d captures semantic similarity noticeably better than 100d — worth the extra size.
 MAX_VOCAB = 40_000
 MIN_WORD_LEN = 2
 MAX_WORD_LEN = 12  # generous upper bound; per-round length filter is applied at query time
