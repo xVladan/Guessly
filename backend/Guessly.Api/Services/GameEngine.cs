@@ -28,6 +28,24 @@ public sealed class GameEngine(
     private readonly ConcurrentDictionary<string, Room> _rooms = new();
     private readonly ConcurrentDictionary<string, (string RoomCode, string PlayerId)> _connections = new();
 
+    /// <summary>Admin-only snapshot of every live room, secret words included. Never expose this to players.</summary>
+    public List<AdminRoomDto> GetAdminRoomsSnapshot()
+    {
+        return _rooms.Values.Select(room =>
+        {
+            lock (room.Lock)
+            {
+                return new AdminRoomDto(
+                    room.Code,
+                    room.Phase.ToString(),
+                    room.CurrentRoundNumber,
+                    room.Settings.RoundCount,
+                    room.Players.OrderBy(p => p.JoinOrder).Select(PlayerDto.From).ToList(),
+                    room.CurrentRound?.SecretWord);
+            }
+        }).ToList();
+    }
+
     /// <summary>Lets a client entering a room code preview which avatars are already taken, before it commits to joining.</summary>
     public List<string> GetTakenAvatars(string roomCode)
     {

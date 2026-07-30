@@ -8,3 +8,5 @@ services:
     environment:
       - PORT=5000
       - ALLOWED_ORIGINS=https://play.weddio.net,http://localhost:5500
+      # Read from backend/.env on the server (gitignored) — see .env.example.
+      - ADMIN_API_KEY=${ADMIN_API_KEY}

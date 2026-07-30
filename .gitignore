@@ -11,3 +11,6 @@ embeddings/data/raw/
 # OS/editor noise
 .vs/
 *.user
+
+# Secrets — real value lives only on the server, see backend/.env.example
+backend/.env

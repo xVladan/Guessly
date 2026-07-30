@@ -42,6 +42,18 @@ app.MapGet("/api/avatars", () => Results.Ok(GameEngine.AvailableAvatars));
 app.MapGet("/api/rooms/{code}/taken-avatars", (string code, GameEngine engine) =>
     Results.Ok(engine.GetTakenAvatars(code)));
 
+app.MapGet("/api/admin/rooms", (HttpRequest request, GameEngine engine) =>
+{
+    var expectedKey = Environment.GetEnvironmentVariable("ADMIN_API_KEY");
+    if (string.IsNullOrEmpty(expectedKey))
+        return Results.Problem("ADMIN_API_KEY is not configured on the server.", statusCode: 503);
+
+    if (request.Headers["X-Admin-Key"] != expectedKey)
+        return Results.Unauthorized();
+
+    return Results.Ok(engine.GetAdminRoomsSnapshot());
+});
+
 app.MapHub<GameHub>("/hub/game");
 
 app.Run();

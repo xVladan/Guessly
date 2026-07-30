@@ -61,3 +61,12 @@ public sealed record RoundEndedDto(
     Dictionary<string, int> CumulativeScores);
 
 public sealed record GameEndedDto(Dictionary<string, int> FinalScores, string? WinnerPlayerId);
+
+/// <summary>Admin-only diagnostic view of a live room — includes the secret word, so this must never be exposed without auth.</summary>
+public sealed record AdminRoomDto(
+    string Code,
+    string Phase,
+    int CurrentRoundNumber,
+    int TotalRounds,
+    List<PlayerDto> Players,
+    string? SecretWord);
